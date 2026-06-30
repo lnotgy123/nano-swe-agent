@@ -1,0 +1,57 @@
+# Python / test cache
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local machine config
+configs/*.local.yaml
+.env
+.env.*
+
+# Models and checkpoints
+Qwen2.5-Coder-7B-Instruct/
+Qwen*/
+saves/
+*.safetensors
+*.bin
+*.pt
+*.pth
+*.ckpt
+
+# SWE-bench data, caches, workspaces, and outputs
+data/cache/
+data/cloud_eval/
+data/envs/
+data/llamafactory/
+data/official_eval/
+data/official_sft/
+data/open_trajectories/
+data/predictions/
+data/repo_cache/
+data/runs/
+data/tmp/
+data/toy_repos/
+data/trajectories/
+data/trajectories_with_official_eval/
+data/workspaces/
+swebench_image_tars/
+
+# Third-party source trees. Install these separately.
+third_party/
+mini-swe-agent/
+SWE-agent/
+
+# Logs and temporary files
+*.log
+*.tmp
+*.pid
+*.tar
+*.tar.gz
+*.tar.zst
+
+# Editor / OS files
+.DS_Store
+.vscode/
