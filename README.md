@@ -1,32 +1,50 @@
-# SWE Agent
+# Nano SWE Agent
 
-这是一个面向 SWE-bench 的软件工程智能体实验项目。项目目标是让本地代码模型在受控 workflow 下完成真实仓库的问题定位、代码编辑、patch 生成和评测。
+Nano SWE Agent 是一个面向 SWE-bench 的轻量级软件工程智能体实验项目。项目围绕本地代码模型构建完整的 issue 修复链路：读取问题描述、定位仓库代码、执行工具、编辑文件、生成 patch，并导出可用于 SWE-bench harness 评测的 predictions。
 
-当前实现重点是核心 agent 链路，而不是提交大模型权重、训练产物或评测缓存。
+当前实现主要参考 SWE-agent / mini-swe-agent 的工作方式，但保留了更小、更容易实验和改造的代码结构。
 
 ```text
-issue -> agent workflow -> tool actions -> code patch -> SWE-bench prediction
+SWE-bench instance
+  -> XML agent workflow
+  -> bash / str_replace_editor / submit
+  -> repository patch
+  -> SWE-bench prediction
+  -> official harness evaluation
 ```
 
-## 核心技术栈
+## 特性
 
-- 模型：Qwen2.5-Coder-7B-Instruct 或兼容的本地代码模型
-- 推理：Transformers / PyTorch
-- 微调：LLaMA-Factory，LoRA SFT
-- 数据：SWE-smith trajectories
-- 任务：SWE-bench / SWE-bench Lite
-- 隔离执行：Docker
-- Agent 协议：XML action，主要包含 `bash`、`str_replace_editor`、`submit`
+- 支持本地 Qwen2.5-Coder-7B-Instruct 推理。
+- 支持 LoRA adapter 挂载与 SWE-smith trajectory SFT 数据构造。
+- 使用 XML action 协议驱动工具调用。
+- 提供 Docker executor，用于隔离执行仓库命令。
+- 支持 SWE-bench Lite rollout、trajectory 保存、patch 导出。
+- 支持基于 SWE-bench official harness 的本地评测。
 
-## 提交内容
+## 技术栈
 
-建议开源仓库只包含核心代码、配置模板和复现实验脚本：
+- Base model：Qwen2.5-Coder-7B-Instruct
+- Inference：Transformers / PyTorch
+- Fine-tuning：LLaMA-Factory / LoRA SFT
+- Training data：SWE-bench/SWE-smith-trajectories
+- Benchmark：SWE-bench / SWE-bench Lite
+- Runtime isolation：Docker
+- Agent protocol：XML actions
+
+主要工具动作：
+
+- `bash`：执行 shell 命令、搜索代码、运行测试。
+- `str_replace_editor`：查看、替换、插入、创建文件。
+- `submit`：完成当前 patch。
+
+## 文件结构
 
 ```text
 agent/
   llm_client.py                  # 本地模型推理封装
   sweagent_xml_workflow.py        # 核心 XML workflow
-  trajectory.py                   # 轨迹记录
+  trajectory.py                   # trajectory 记录与保存
   types.py                        # agent 数据结构
 
 bench/
@@ -40,66 +58,48 @@ tools/
   docker_executor.py              # Docker 执行器
 
 scripts/
-  run_swebench_shared_docker_batch.py
-  run_official_eval_cached_specs.py
-  export_swebench_predictions.py
-  cache_swebench_test_specs.py
-  cache_swebench_images.py
-  build_swesmith_official_sft.py
-  build_swesmith_stage2_key_actions.py
-  train_*.sh
+  run_swebench_shared_docker_batch.py   # 批量 rollout
+  run_official_eval_cached_specs.py     # 本地 official eval
+  export_swebench_predictions.py        # 导出 SWE-bench predictions
+  cache_swebench_test_specs.py          # 缓存 SWE-bench TestSpec
+  cache_swebench_images.py              # 缓存 SWE-bench Docker 镜像
+  build_swesmith_official_sft.py        # 构造官方风格 SFT 数据
+  build_swesmith_stage2_key_actions.py  # 构造二阶段 key-action 数据
+  train_*.sh                            # LLaMA-Factory 训练入口
 
 configs/
-  qwen_local.yaml                 # 推理配置模板
-  llamafactory_*.yaml             # 训练配置模板
+  qwen_local.yaml                       # 本地模型推理配置模板
+  llamafactory_*.yaml                   # LLaMA-Factory 训练配置模板
 
 docs/
-  ENVIRONMENT.md
-  SWEBENCH.md
-  TRAINING.md
+  ENVIRONMENT.md                        # 环境说明
+  SWEBENCH.md                           # SWE-bench 运行说明
+  TRAINING.md                           # 训练说明
 
 tests/
-  test_*.py
+  test_*.py                             # 单元测试
 ```
 
-以下内容不提交到 GitHub，已通过 `.gitignore` 排除：
+## 安装
 
-- 基座模型、LoRA adapter、checkpoint
-- SWE-bench Docker 镜像包
-- rollout trajectory、predictions、评测报告
-- repo cache、workspace、临时文件
-- 训练中间数据和缓存
-- `third_party/` 下的外部项目源码
-- `configs/*.local.yaml` 本机真实路径配置
-
-## 环境安装
-
-建议使用独立虚拟环境：
+建议使用独立 Python 环境：
 
 ```bash
-conda create -n swe-agent python=3.11 -y
-conda activate swe-agent
+conda create -n nano-swe-agent python=3.11 -y
+conda activate nano-swe-agent
 pip install -r requirements.txt
 ```
 
-如果需要本地开发 LLaMA-Factory 或 SWE-bench，可以单独 clone 到 `third_party/` 后安装 editable 版本：
+如果需要使用本地开发版 LLaMA-Factory 或 SWE-bench，可以额外安装 editable clone：
 
 ```bash
 pip install -e third_party/LLaMA-Factory
 pip install -e third_party/SWE-bench
 ```
 
-`third_party/` 只是本地开发目录，不属于本仓库提交内容。
+## 配置模型
 
-## 模型配置
-
-公开配置模板位于：
-
-```text
-configs/qwen_local.yaml
-```
-
-示例：
+编辑 `configs/qwen_local.yaml`：
 
 ```yaml
 model:
@@ -114,15 +114,19 @@ generation:
   do_sample: false
 ```
 
-本机真实路径可以复制到 `configs/qwen_local.local.yaml`，该文件不会被 Git 提交。
-
-## 数据构造
-
-从 SWE-smith trajectories 构造接近 SWE-agent-LM 路线的 SFT 数据：
+训练和数据构造脚本也支持通过环境变量指定模型路径：
 
 ```bash
 export QWEN_MODEL_PATH=/path/to/Qwen2.5-Coder-7B-Instruct
+```
 
+## 使用流程
+
+### 1. 构造 SFT 数据
+
+从 SWE-smith trajectories 构造 XML action 风格 SFT 数据：
+
+```bash
 python scripts/build_swesmith_official_sft.py \
   --split xml \
   --max-tokens 16384 \
@@ -135,19 +139,21 @@ python scripts/build_swesmith_official_sft.py \
 python scripts/build_swesmith_stage2_key_actions.py
 ```
 
-生成的数据默认写入 `data/`，不进入 Git。
+### 2. LoRA 训练
 
-## LoRA 训练
-
-训练配置模板在 `configs/` 下。启动示例：
+使用 LLaMA-Factory 启动 LoRA SFT：
 
 ```bash
 bash scripts/train_swesmith_official_xml_lora_sft_16k_r128.sh
 ```
 
-训练产物默认写入 `saves/`，不进入 Git。
+二阶段训练入口：
 
-## Rollout
+```bash
+bash scripts/train_swesmith_stage2_key_actions_lora_v2.sh
+```
+
+### 3. SWE-bench Rollout
 
 使用共享 Docker 环境运行 SWE-bench Lite rollout：
 
@@ -158,24 +164,24 @@ python -u scripts/run_swebench_shared_docker_batch.py \
   --max-steps 150 \
   --spec-cache data/cache/swebench/lite_test_specs_0_300.json \
   --adapter-path /path/to/lora-adapter \
-  --workspace-root "${HOME}/.cache/swe-agent/workspaces/shared_docker_v2_0_300" \
+  --workspace-root "${HOME}/.cache/nano-swe-agent/workspaces/shared_docker_v2_0_300" \
   --trajectory-dir data/trajectories/shared_docker_v2_0_300 \
   --summary-file data/runs/shared_docker_v2_0_300.jsonl \
   --skip-existing
 ```
 
-## 导出 Predictions
+### 4. 导出 Predictions
 
 ```bash
 python scripts/export_swebench_predictions.py \
   --input-glob 'data/trajectories/shared_docker_v2_0_300/*.jsonl' \
   --output-file data/predictions/shared_docker_v2_0_300.predictions.jsonl \
-  --model-name qwen2.5-coder-7b-swe-agent
+  --model-name qwen2.5-coder-7b-nano-swe-agent
 ```
 
-## 本地评测
+### 5. 本地 Official Eval
 
-本地 official eval 需要提前准备对应 SWE-bench Docker 镜像：
+本地 official eval 需要准备对应 SWE-bench Docker 镜像：
 
 ```bash
 python scripts/run_official_eval_cached_specs.py \
@@ -188,26 +194,36 @@ python scripts/run_official_eval_cached_specs.py \
   --cache-level instance
 ```
 
-## GitHub 开源建议
+评测逻辑与 SWE-bench official harness 一致：
 
-首次发布前建议检查：
-
-```bash
-git status --short
-git check-ignore -v saves/ data/trajectories/ data/predictions/ third_party/ configs/qwen_local.local.yaml
+```text
+apply model_patch -> run FAIL_TO_PASS -> run PASS_TO_PASS -> judge resolved
 ```
 
-只提交源码、配置模板、文档和测试：
+## 实验效果
 
-```bash
-git add README.md .gitignore requirements.txt agent bench tools scripts configs docs tests TECHNICAL_ROADMAP.md
-git commit -m "Initial open-source SWE agent workflow"
+当前公开仓库中的 workflow 已完成 SWE-bench Lite 链路打通，包括模型推理、工具调用、patch 生成、prediction 导出和本地 official eval。
+
+在已有 exact-image 环境覆盖的本地子集上，当前 LoRA workflow 的实验结果为：
+
+```text
+evaluation subset: 63 SWE-bench Lite instances
+completed: 62
+resolved: 10
+error / timeout: 1
+resolved / total: 10 / 63 = 15.87%
 ```
 
-创建远程仓库后推送：
+该结果是本地 exact-image 子集评测，不等价于完整 SWE-bench Lite 300 条官方分数。完整评测需要准备全部 instance 对应的 SWE-bench eval images。
+
+## 测试
 
 ```bash
-git remote add origin git@github.com:<user>/<repo>.git
-git branch -M main
-git push -u origin main
+pytest -q
 ```
+
+当前单元测试覆盖 workflow guard、数据构造采样和测试命令解析等核心逻辑。
+
+## License
+
+MIT License
